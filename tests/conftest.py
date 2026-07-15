@@ -3,7 +3,7 @@
 import subprocess
 import time
 import logging
-from typing import Generator, Dict, List
+from typing import Generator, Dict, List, Optional
 from contextlib import contextmanager
 
 import pytest
@@ -57,6 +57,15 @@ def create_fake_user() -> Dict[str, str]:
         "username": fake.unique.user_name(),
         "password": fake.password(length=12)
     }
+
+def make_user(data: Optional[Dict[str, str]] = None, **overrides) -> User:
+    """
+    Build a User instance from raw registration-style data, hashing the
+    plain-text 'password' into the 'password_hash' column.
+    """
+    fields = {**(data or create_fake_user()), **overrides}
+    raw_password = fields.pop("password")
+    return User(**fields, password_hash=User.hash_password(raw_password))
 
 @contextmanager
 def managed_db_session():
@@ -173,8 +182,7 @@ def test_user(db_session: Session) -> User:
     """
     Create and return a single test user.
     """
-    user_data = create_fake_user()
-    user = User(**user_data)
+    user = make_user()
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
@@ -198,8 +206,7 @@ def seed_users(db_session: Session, request) -> List[User]:
 
     users = []
     for _ in range(num_users):
-        user_data = create_fake_user()
-        user = User(**user_data)
+        user = make_user()
         users.append(user)
         db_session.add(user)
 
@@ -325,7 +332,7 @@ Basic Examples:
 
 2. Using fake data:
    def test_with_fake_data(fake_user_data):
-       user = User(**fake_user_data)
+       user = make_user(fake_user_data)
        # proceed with test logic...
 
 3. Working with a test user:

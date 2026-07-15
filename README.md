@@ -1,264 +1,136 @@
-# 📦 Project Setup
+# Module 10 — Secure User Model & CI/CD Pipeline
 
----
+A FastAPI application with a secure, database-backed user model built on
+SQLAlchemy and Pydantic, with bcrypt password hashing, a full pytest suite
+(unit + integration + e2e), and a GitHub Actions pipeline that tests, scans,
+and deploys a Docker image to Docker Hub.
 
-# 🧩 1. Install Homebrew (Mac Only)
+## Docker Hub
 
-> Skip this step if you're on Windows.
-
-Homebrew is a package manager for macOS.  
-You’ll use it to easily install Git, Python, Docker, etc.
-
-**Install Homebrew:**
+- **Image:** [`susanchapas/module10_is601`](https://hub.docker.com/r/susanchapas/module10_is601)
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+docker pull susanchapas/module10_is601:latest
+docker run -p 8000:8000 susanchapas/module10_is601:latest
+# App: http://localhost:8000  |  Health: http://localhost:8000/health
 ```
 
-**Verify Homebrew:**
+## Features
+
+- **SQLAlchemy `User` model** ([app/models/user.py](app/models/user.py)) with unique
+  `username` and `email` constraints, a `password_hash` column, and a `created_at` timestamp.
+- **Password hashing** — `User.hash_password()` (bcrypt via passlib) and
+  `User.verify_password()` to check a plain-text password against the stored hash.
+- **Pydantic schemas** — `UserCreate` (username, email, password + validation) in
+  [app/schemas/base.py](app/schemas/base.py) and `UserRead` (returns user details,
+  omits `password_hash`) in [app/schemas/user.py](app/schemas/user.py).
+- **JWT auth helpers** for token creation/verification and login.
+- **Tests** — unit tests plus integration tests that run against a real Postgres
+  database (uniqueness violations, invalid emails, hashing, registration, auth).
+
+## Tech Stack
+
+FastAPI · SQLAlchemy 2 · Pydantic 2 · PostgreSQL · passlib/bcrypt · python-jose ·
+pytest · Playwright · Docker · GitHub Actions · Trivy
+
+## Prerequisites
+
+- Python 3.10+
+- Docker + Docker Compose (for Postgres and containerized runs)
+
+## Setup
 
 ```bash
-brew --version
-```
+git clone git@github.com:susanchapas/module10_is601.git
+cd module10_is601
 
-If you see a version number, you're good to go.
-
----
-
-# 🧩 2. Install and Configure Git
-
-## Install Git
-
-- **MacOS (using Homebrew)**
-
-```bash
-brew install git
-```
-
-- **Windows**
-
-Download and install [Git for Windows](https://git-scm.com/download/win).  
-Accept the default options during installation.
-
-**Verify Git:**
-
-```bash
-git --version
-```
-
----
-
-## Configure Git Globals
-
-Set your name and email so Git tracks your commits properly:
-
-```bash
-git config --global user.name "Your Name"
-git config --global user.email "your_email@example.com"
-```
-
-Confirm the settings:
-
-```bash
-git config --list
-```
-
----
-
-## Generate SSH Keys and Connect to GitHub
-
-> Only do this once per machine.
-
-1. Generate a new SSH key:
-
-```bash
-ssh-keygen -t ed25519 -C "your_email@example.com"
-```
-
-(Press Enter at all prompts.)
-
-2. Start the SSH agent:
-
-```bash
-eval "$(ssh-agent -s)"
-```
-
-3. Add the SSH private key to the agent:
-
-```bash
-ssh-add ~/.ssh/id_ed25519
-```
-
-4. Copy your SSH public key:
-
-- **Mac/Linux:**
-
-```bash
-cat ~/.ssh/id_ed25519.pub | pbcopy
-```
-
-- **Windows (Git Bash):**
-
-```bash
-cat ~/.ssh/id_ed25519.pub | clip
-```
-
-5. Add the key to your GitHub account:
-   - Go to [GitHub SSH Settings](https://github.com/settings/keys)
-   - Click **New SSH Key**, paste the key, save.
-
-6. Test the connection:
-
-```bash
-ssh -T git@github.com
-```
-
-You should see a success message.
-
----
-
-# 🧩 3. Clone the Repository
-
-Now you can safely clone the course project:
-
-```bash
-git clone <repository-url>
-cd <repository-directory>
-```
-
----
-
-# 🛠️ 4. Install Python 3.10+
-
-## Install Python
-
-- **MacOS (Homebrew)**
-
-```bash
-brew install python
-```
-
-- **Windows**
-
-Download and install [Python for Windows](https://www.python.org/downloads/).  
-✅ Make sure you **check the box** `Add Python to PATH` during setup.
-
-**Verify Python:**
-
-```bash
-python3 --version
-```
-or
-```bash
-python --version
-```
-
----
-
-## Create and Activate a Virtual Environment
-
-(Optional but recommended)
-
-```bash
 python3 -m venv venv
-source venv/bin/activate   # Mac/Linux
-venv\Scripts\activate.bat  # Windows
-```
-
-### Install Required Packages
-
-```bash
+source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
----
+## Running the Application
 
-# 🐳 5. (Optional) Docker Setup
-
-> Skip if Docker isn't used in this module.
-
-## Install Docker
-
-- [Install Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
-- [Install Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
-
-## Build Docker Image
+**With Docker Compose (recommended — includes Postgres + pgAdmin):**
 
 ```bash
-docker build -t <image-name> .
+docker compose up --build
 ```
 
-## Run Docker Container
+**Locally with uvicorn** (requires a running Postgres — see below):
 
 ```bash
-docker run -it --rm <image-name>
+uvicorn main:app --reload
 ```
 
----
+Open http://localhost:8000 for the calculator UI and API docs at
+http://localhost:8000/docs.
 
-# 🚀 6. Running the Project
+## Running Tests Locally
 
-- **Without Docker**:
+The integration tests require a real PostgreSQL database. The simplest way is to
+start the Postgres service from `docker-compose.yml`, then point the app at it via
+`DATABASE_URL`.
+
+**1. Start Postgres:**
 
 ```bash
-python main.py
+docker compose up -d db
 ```
 
-(or update this if the main script is different.)
-
-- **With Docker**:
+**2. Point the tests at the test database and run pytest:**
 
 ```bash
-docker run -it --rm <image-name>
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/fastapi_db"
+
+# Everything (unit + integration), with coverage
+pytest
+
+# Just unit tests (no database needed for the calculator logic)
+pytest tests/unit/
+
+# Just integration tests (database-backed: uniqueness, hashing, auth)
+pytest tests/integration/
+
+# End-to-end browser tests (starts the server and drives it with Playwright)
+playwright install chromium
+pytest tests/e2e/
 ```
 
----
+Coverage reports are generated automatically (configured in `pytest.ini`): a
+terminal summary plus an HTML report in `htmlcov/`.
 
-# 📝 7. Submission Instructions
+> On the first e2e run, `playwright install chromium` downloads the browser.
 
-After finishing your work:
+## CI/CD Pipeline
 
-```bash
-git add .
-git commit -m "Complete Module X"
-git push origin main
-```
+The pipeline is defined in [.github/workflows/test.yml](.github/workflows/test.yml)
+and runs on every push/PR to `main`:
 
-Then submit the GitHub repository link as instructed.
+1. **test** — spins up a Postgres service and runs the unit, integration, and e2e suites.
+2. **security** — builds the Docker image and scans it with Trivy for CRITICAL/HIGH vulnerabilities.
+3. **deploy** — on `main`, builds and pushes the image to Docker Hub as
+   `susanchapas/module10_is601:latest` (and a commit-SHA tag).
 
----
+### Connecting Docker Hub to this repo
 
-# 🔥 Useful Commands Cheat Sheet
+The deploy job authenticates using two GitHub Actions secrets. To set them up:
 
-| Action                         | Command                                          |
-| ------------------------------- | ------------------------------------------------ |
-| Install Homebrew (Mac)          | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
-| Install Git                     | `brew install git` or Git for Windows installer |
-| Configure Git Global Username  | `git config --global user.name "Your Name"`      |
-| Configure Git Global Email     | `git config --global user.email "you@example.com"` |
-| Clone Repository                | `git clone <repo-url>`                          |
-| Create Virtual Environment     | `python3 -m venv venv`                           |
-| Activate Virtual Environment   | `source venv/bin/activate` / `venv\Scripts\activate.bat` |
-| Install Python Packages        | `pip install -r requirements.txt`               |
-| Build Docker Image              | `docker build -t <image-name> .`                |
-| Run Docker Container            | `docker run -it --rm <image-name>`               |
-| Push Code to GitHub             | `git add . && git commit -m "message" && git push` |
+1. On Docker Hub, create the repository `module10_is601` (or let the first push create it).
+2. Docker Hub → **Account Settings → Security → New Access Token** (Read/Write). Copy the token.
+3. In this GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**, add:
+   - `DOCKERHUB_USERNAME` = `susanchapas`
+   - `DOCKERHUB_TOKEN` = the access token from step 2
+4. Push to `main` — the workflow builds, scans, and pushes the image automatically.
 
----
+## Screenshots
 
-# 📋 Notes
+_Add the required proof-of-work screenshots here:_
 
-- Install **Homebrew** first on Mac.
-- Install and configure **Git** and **SSH** before cloning.
-- Use **Python 3.10+** and **virtual environments** for Python projects.
-- **Docker** is optional depending on the project.
+- **GitHub Actions — successful run:** ![CI/CD passing](screenshots/github-actions.png)
+- **Docker Hub — pushed image:** ![Docker Hub image](screenshots/docker-hub.png)
 
----
+## Reflection
 
-# 📎 Quick Links
-
-- [Homebrew](https://brew.sh/)
-- [Git Downloads](https://git-scm.com/downloads)
-- [Python Downloads](https://www.python.org/downloads/)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- [GitHub SSH Setup Guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
+See [REFLECTION.md](REFLECTION.md) for a write-up of the development experience and
+challenges faced.
